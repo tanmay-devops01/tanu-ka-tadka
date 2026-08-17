@@ -24,8 +24,11 @@ import {
   Waves,
   X,
   Youtube,
+  Loader2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -34,14 +37,34 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { MIXED_PLAYLIST, type RadioTrack } from "@/lib/playlist";
+import {
+  CATALOGUE_INDEX_META,
+  CATALOGUE_TOTAL,
+  getTrackAt,
+  preloadCatalogueBatch,
+  type RadioTrack,
+} from "@/lib/catalogue";
+import { PersistentRadioQueue } from "@/lib/radioQueue";
 
-const MANUS_ASSET_ORIGIN = "https://tanukatadk-mkctksgt.manus.space";
-const LOGO_IMAGE = `${MANUS_ASSET_ORIGIN}/manus-storage/tanu-ka-tadka-logo-mark_1cf2b397.png`;
-const RADIO_IMAGE = `${MANUS_ASSET_ORIGIN}/manus-storage/tanu-ka-tadka-radio-detail_5270d6dc.png`;
-const MONSOON_IMAGE = `${MANUS_ASSET_ORIGIN}/manus-storage/tanu-ka-tadka-monsoon-window_51d299e1.png`;
-const STUDIO_HERO_IMAGE = `${MANUS_ASSET_ORIGIN}/manus-storage/tanu-ka-tadka-studio-hero_7b168e01.jpeg`;
-const UPI_QR_IMAGE = `${MANUS_ASSET_ORIGIN}/manus-storage/tanu-ka-tadka-upi-qr_25f9bcf8.jpeg`;
+const MONSOON_IMAGE = "/manus-storage/tanu-ka-tadka-monsoon-window_51d299e1.png";
+const STUDIO_HERO_IMAGE = "/manus-storage/tanu-ka-tadka-studio-hero_7b168e01.jpeg";
+const RADIO_IMAGE = STUDIO_HERO_IMAGE;
+const UPI_QR_IMAGE = "/manus-storage/tanu-ka-tadka-upi-qr_25f9bcf8.jpeg";
+const LOADING_TRACK: RadioTrack = {
+  catalogueIndex: -1,
+  videoId: "",
+  title: "Tuning the larger radio…",
+  artist: "Tanu Ka Tadka",
+  language: "Hindi",
+  category: "1,000-song no-repeat queue",
+  duration: 0,
+  sourceName: "Tanu Ka Tadka catalogue",
+  sourceUrl: "",
+  spotifyUrl: "https://open.spotify.com/search/Tanu%20Ka%20Tadka",
+  amazonMusicUrl: "https://www.amazon.in/music",
+  jioSaavnUrl: "https://www.jiosaavn.com/",
+  status: "approved-candidate",
+};
 
 interface YouTubePlayer {
   cueVideoById: (videoId: string) => void;
@@ -86,6 +109,22 @@ const saloonQuotes = [
   "“କେଉଁ ଗୀତ ଚାଲିଛି? ପୁରୁଣା ଦିନର।”",
   "“Ek number fade. Do number yaadein.”",
   "“बारिश हो या कटिंग, रेडियो चलेगा।”",
+];
+
+type StationId = "all" | "bollywood" | "odia-classics" | "2000s" | "2010s" | "party" | "recent";
+
+const STATION_MODES: Array<{
+  id: StationId;
+  label: string;
+  matches: (entry: (typeof CATALOGUE_INDEX_META)[number]) => boolean;
+}> = [
+  { id: "all", label: "All mix", matches: () => true },
+  { id: "bollywood", label: "Bollywood hits", matches: (entry) => entry.language === "Hindi" },
+  { id: "odia-classics", label: "Odia classics", matches: (entry) => entry.category === "Odia classics / romance" },
+  { id: "2000s", label: "2000s", matches: (entry) => entry.category.includes("2000s") },
+  { id: "2010s", label: "2010s", matches: (entry) => entry.category.includes("2010s") },
+  { id: "party", label: "Party / dance", matches: (entry) => /party|dance/i.test(entry.category) },
+  { id: "recent", label: "Recent", matches: (entry) => entry.category.includes("Recent") },
 ];
 
 const faqs = [
@@ -231,8 +270,8 @@ function createRainGraph(onLightning: (active: boolean) => void, volume: number)
 }
 
 export default function Home() {
-  const initialTrackIndexRef = useRef(Math.floor(Math.random() * MIXED_PLAYLIST.length));
-  const [trackIndex, setTrackIndex] = useState(initialTrackIndexRef.current);
+  const [currentTrack, setCurrentTrack] = useState<RadioTrack | null>(null);
+  const [queueProgress, setQueueProgress] = useState({ played: 0, remaining: CATALOGUE_TOTAL });
   const [isPlaying, setIsPlaying] = useState(false);
   const [playerReady, setPlayerReady] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -244,33 +283,86 @@ export default function Home() {
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [quoteIndex, setQuoteIndex] = useState(0);
+  const [stationId, setStationId] = useState<StationId>("all");
+  const [isTrackLoading, setIsTrackLoading] = useState(true);
   const playerRef = useRef<YouTubePlayer | null>(null);
   const rainRef = useRef<RainGraph | null>(null);
-  const trackIndexRef = useRef(initialTrackIndexRef.current);
-  const currentTrack = MIXED_PLAYLIST[trackIndex];
+  const queueRef = useRef<PersistentRadioQueue | null>(null);
+  const currentCatalogueIndexRef = useRef<number | null>(null);
+  const currentTrackRef = useRef<RadioTrack | null>(null);
+  const playerReadyRef = useRef(false);
+  const displayTrack = currentTrack ?? LOADING_TRACK;
 
-  const pickRandomIndex = (exclude = trackIndexRef.current) => {
-    if (MIXED_PLAYLIST.length < 2) return 0;
-    let next = exclude;
-    while (next === exclude) next = Math.floor(Math.random() * MIXED_PLAYLIST.length);
-    return next;
+  if (!queueRef.current) queueRef.current = new PersistentRadioQueue(CATALOGUE_TOTAL);
+
+  const activateTrack = async (catalogueIndex: number, autoplay: boolean) => {
+    setIsTrackLoading(true);
+    try {
+      const track = await getTrackAt(catalogueIndex);
+      currentCatalogueIndexRef.current = catalogueIndex;
+      currentTrackRef.current = track;
+      setCurrentTrack(track);
+      setElapsed(0);
+      setDuration(0);
+      preloadCatalogueBatch(Math.floor(catalogueIndex / 100) + 1);
+      const player = playerRef.current;
+      if (!player || !playerReadyRef.current) return;
+      if (autoplay) player.loadVideoById(track.videoId);
+      else player.cueVideoById(track.videoId);
+    } catch {
+      setIsTrackLoading(false);
+      toast.error("Could not load that radio record", { description: "The station is moving to the next available track." });
+    }
   };
 
-  const loadTrack = (nextIndex: number, autoplay: boolean) => {
-    trackIndexRef.current = nextIndex;
-    setTrackIndex(nextIndex);
-    setElapsed(0);
-    setDuration(0);
-    const player = playerRef.current;
-    if (!player) return;
-    if (autoplay) player.loadVideoById(MIXED_PLAYLIST[nextIndex].videoId);
-    else player.cueVideoById(MIXED_PLAYLIST[nextIndex].videoId);
+  const selectNextTrack = (requestedStation: StationId, autoplay = true) => {
+    const queue = queueRef.current!;
+    const mode = STATION_MODES.find((station) => station.id === requestedStation) ?? STATION_MODES[0];
+    const nextIndex = queue.nextMatching((candidateIndex) => mode.matches(CATALOGUE_INDEX_META[candidateIndex]));
+    if (nextIndex === null) {
+      toast.error("This station has no unplayed records left", { description: "Choose another dial or wait for the next full-cycle reset." });
+      return;
+    }
+    setQueueProgress(queue.progress);
+    void activateTrack(nextIndex, autoplay);
   };
 
-  const playNext = () => loadTrack(pickRandomIndex(), true);
+  const playNext = () => {
+    selectNextTrack(stationId);
+  };
   const playPrevious = () => {
-    const previous = (trackIndexRef.current - 1 + MIXED_PLAYLIST.length) % MIXED_PLAYLIST.length;
-    loadTrack(previous, true);
+    const queue = queueRef.current!;
+    const previousIndex = queue.previous();
+    setQueueProgress(queue.progress);
+    void activateTrack(previousIndex, true);
+  };
+
+  const replaceUnavailableTrack = () => {
+    const queue = queueRef.current!;
+    const failedIndex = currentCatalogueIndexRef.current;
+    const failedTrack = currentTrackRef.current;
+    if (failedIndex !== null) queue.markUnavailable(failedIndex);
+    const replacementIndex = queue.nextMatching((candidateIndex) => {
+      if (!failedTrack) return true;
+      const candidate = CATALOGUE_INDEX_META[candidateIndex];
+      return candidate.language === failedTrack.language && candidate.category === failedTrack.category;
+    });
+    if (replacementIndex === null) {
+      setIsPlaying(false);
+      setIsTrackLoading(false);
+      toast.error("That YouTube upload is unavailable", { description: "No same-category replacement remains in this cycle." });
+      return;
+    }
+    setQueueProgress(queue.progress);
+    toast.error("Skipped an unavailable upload", { description: "The radio found the next matching track in the catalogue." });
+    void activateTrack(replacementIndex, true);
+  };
+
+  const handleStationChange = (nextStation: StationId) => {
+    setStationId(nextStation);
+    const mode = STATION_MODES.find((station) => station.id === nextStation) ?? STATION_MODES[0];
+    toast.message(`Dial tuned: ${mode.label}`, { description: "The next unplayed record is loading from this station." });
+    selectNextTrack(nextStation);
   };
 
   const togglePlayback = () => {
@@ -318,23 +410,38 @@ export default function Home() {
   };
 
   useEffect(() => {
+    const queue = queueRef.current!;
+    const initialIndex = queue.next();
+    setQueueProgress(queue.progress);
+    void activateTrack(initialIndex, false);
+  }, []);
+
+  useEffect(() => {
     const ready = () => {
       playerRef.current = new window.YT!.Player("tanu-youtube-player", {
         width: 1,
         height: 1,
-        videoId: MIXED_PLAYLIST[trackIndexRef.current].videoId,
+        videoId: "",
         playerVars: { autoplay: 0, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, playsinline: 1, rel: 0 },
         events: {
           onReady: (event) => {
-            event.target.cueVideoById(MIXED_PLAYLIST[trackIndexRef.current].videoId);
+            playerReadyRef.current = true;
+            if (currentTrackRef.current) event.target.cueVideoById(currentTrackRef.current.videoId);
             setPlayerReady(true);
+            setIsTrackLoading(false);
           },
           onStateChange: (event) => {
-            if (event.data === 1) setIsPlaying(true);
+            if (event.data === 1) {
+              setIsPlaying(true);
+              setIsTrackLoading(false);
+            }
             if (event.data === 2) setIsPlaying(false);
             if (event.data === 0) playNext();
           },
-          onError: () => playNext(),
+          onError: () => {
+            setIsTrackLoading(false);
+            replaceUnavailableTrack();
+          },
         },
       });
     };
@@ -359,6 +466,7 @@ export default function Home() {
     return () => {
       playerRef.current?.destroy();
       playerRef.current = null;
+      playerReadyRef.current = false;
       if (rainRef.current) {
         stopRainGraph(rainRef.current);
         rainRef.current = null;
@@ -389,7 +497,7 @@ export default function Home() {
       <div id="tanu-youtube-player" className="youtube-host" aria-hidden="true" />
       <header className="site-header compact-header">
         <a href="#top" className="brand-mark" aria-label="Tanu Ka Tadka home">
-          <img src={LOGO_IMAGE} alt="" className="brand-icon" />
+          <Scissors aria-hidden="true" className="brand-icon" />
           <span className="brand-lockup"><span className="brand-devanagari">तनु का तड़का</span><span className="brand-roman">THE MOHALLA MEMORY STATION</span></span>
         </a>
         <button className="mobile-menu-toggle" type="button" onClick={() => setMenuOpen((open) => !open)} aria-expanded={menuOpen} aria-controls="site-navigation">
@@ -417,6 +525,13 @@ export default function Home() {
             <output>{rainVolume}%</output>
           </label>
 
+          <section className="station-dial" aria-label="Genre and era station modes">
+            <div className="station-dial-title"><SlidersHorizontal size={14} /><span>Station dial</span><b>{STATION_MODES.find((station) => station.id === stationId)?.label}</b></div>
+            <div className="station-options">
+              {STATION_MODES.map((station) => <button key={station.id} type="button" className={stationId === station.id ? "station-option station-option-active" : "station-option"} onClick={() => handleStationChange(station.id)}>{station.label}</button>)}
+            </div>
+          </section>
+
           <div className="share-card">
             <span className="whatsapp-orb"><MessageCircle size={25} fill="currentColor" /></span>
             <div className="share-copy"><strong lang="hi">शेयर करे और जादू देखे! ✨</strong><span>5 Groups me share karein ({shareCount}/5)</span></div>
@@ -425,12 +540,13 @@ export default function Home() {
           </div>
 
           <section className="compact-player" aria-label="YouTube radio player">
+            {isTrackLoading && <div className="track-loading" role="status"><Loader2 size={14} /><span>Loading next radio record…</span></div>}
             <div className="track-row">
-              <img className="track-thumb" src={`https://i.ytimg.com/vi/${currentTrack.videoId}/hqdefault.jpg`} alt="" />
+              <img className="track-thumb" src={displayTrack.videoId ? `https://i.ytimg.com/vi/${displayTrack.videoId}/hqdefault.jpg` : RADIO_IMAGE} alt="" />
               <div className="track-meta">
-                <div className="track-kicker"><span className={currentTrack.language === "Odia" ? "odia-tag" : "hindi-tag"}>{currentTrack.language}</span> TUNED IN</div>
-                <strong title={currentTrack.title}>{currentTrack.title}</strong>
-                <span className="track-subtitle">{currentTrack.mood}</span>
+                <div className="track-kicker"><span className={displayTrack.language === "Odia" ? "odia-tag" : "hindi-tag"}>{displayTrack.language}</span> TUNED IN</div>
+                <strong title={displayTrack.title}>{displayTrack.title}</strong>
+                <span className="track-subtitle">{displayTrack.category} · 1,000-song no-repeat cycle</span>
               </div>
               <div className="compact-controls">
                 <button type="button" className="circle-control" onClick={playPrevious} disabled={!playerReady} aria-label="Previous song"><SkipBack fill="currentColor" size={15} /></button>
@@ -441,14 +557,14 @@ export default function Home() {
               </div>
             </div>
             <div className="time-row"><span>{formatTime(elapsed)}</span><input type="range" min="0" max={Math.max(duration, 1)} value={Math.min(elapsed, Math.max(duration, 1))} onChange={(event) => { const nextTime = Number(event.target.value); playerRef.current?.seekTo(nextTime, true); setElapsed(nextTime); }} aria-label="Song progress" /><span>{formatTime(duration)}</span></div>
-            <div className="player-foot"><span>{playerReady ? (isPlaying ? "Playing from YouTube" : "Tap play to tune in") : "Tuning the old radio…"}</span><a href={currentTrack.spotifyUrl} target="_blank" rel="noreferrer">Listen full song on Spotify <ExternalLink size={13} /></a></div>
+            <div className="player-foot"><span>{playerReady ? (isPlaying ? `Playing from YouTube · ${queueProgress.played}/${CATALOGUE_TOTAL}` : `No-repeat queue · ${queueProgress.remaining} left`) : "Tuning the 1,000-song radio…"}</span><a href={displayTrack.spotifyUrl} target="_blank" rel="noreferrer">Listen full song on Spotify <ExternalLink size={13} /></a></div>
           </section>
           <p className="saloon-quote"><Scissors size={15} /> {saloonQuotes[quoteIndex]}</p>
         </div>
       </section>
 
       <section id="about" className="about-section" aria-labelledby="about-heading">
-        <div className="about-image-wrap"><img src={RADIO_IMAGE} alt="Illustrated old transistor radio on a saloon counter" className="about-image" /><span className="image-ticket"><img src={LOGO_IMAGE} alt="" /> <span lang="or">ପୁରୁଣା ରେଡିଓ</span></span></div>
+        <div className="about-image-wrap"><img src={RADIO_IMAGE} alt="Illustrated old transistor radio on a saloon counter" className="about-image" /><span className="image-ticket"><Scissors aria-hidden="true" className="ticket-icon" /> <span lang="or">ପୁରୁଣା ରେଡିଓ</span></span></div>
         <div className="about-copy">
           <div className="section-eyebrow"><span>01</span><span lang="hi">कहानी</span> · <span lang="or">କାହାଣୀ</span></div>
           <h2 id="about-heading">Not a playlist.<br /><em>Ek purana adda.</em></h2>
@@ -462,7 +578,7 @@ export default function Home() {
 
       <section id="faq" className="faq-section" aria-labelledby="faq-heading">
         <div className="faq-intro"><div className="section-eyebrow"><span>02</span><span lang="hi">पूछो</span> · <span lang="or">ପଚାରନ୍ତୁ</span></div><h2 id="faq-heading">Pucho. Hum<br /><em>radio pe hain.</em></h2><p>Natural answers for curious listeners, lost playlists, and anyone wondering why a haircut somehow makes old songs sound better.</p><div className="faq-side-mark"><CircleHelp size={28} /><span>ASK THE<br />SALOON</span></div></div>
-        <div className="faq-list"><div className="faq-receipt"><img src={LOGO_IMAGE} alt="" /><span lang="hi">सवाल पर्ची</span></div>{faqs.map((faq, index) => { const isOpen = activeFaq === index; return <article className={isOpen ? "faq-item faq-open" : "faq-item"} key={faq.question}><button type="button" onClick={() => setActiveFaq(isOpen ? null : index)} aria-expanded={isOpen}><span className="faq-number">0{index + 1}</span><span>{faq.question}</span><ChevronDown size={19} /></button><div className="faq-answer" hidden={!isOpen}><p>{faq.answer}</p></div></article>; })}</div>
+        <div className="faq-list"><div className="faq-receipt"><Scissors aria-hidden="true" className="receipt-icon" /><span lang="hi">सवाल पर्ची</span></div>{faqs.map((faq, index) => { const isOpen = activeFaq === index; return <article className={isOpen ? "faq-item faq-open" : "faq-item"} key={faq.question}><button type="button" onClick={() => setActiveFaq(isOpen ? null : index)} aria-expanded={isOpen}><span className="faq-number">0{index + 1}</span><span>{faq.question}</span><ChevronDown size={19} /></button><div className="faq-answer" hidden={!isOpen}><p>{faq.answer}</p></div></article>; })}</div>
       </section>
 
       <section id="support" className="support-section" aria-labelledby="support-heading">
@@ -470,9 +586,9 @@ export default function Home() {
         <div className="upi-card"><span className="upi-corner upi-tl" /><span className="upi-corner upi-tr" /><span className="upi-corner upi-bl" /><span className="upi-corner upi-br" /><div className="upi-top"><span>PHONEPE · UPI</span><span>OPTIONAL</span></div><div className="upi-qr-frame"><img src={UPI_QR_IMAGE} alt="UPI payment QR code for Tanmay Malik" /></div><strong>TANMAY MALIK</strong><small>Scan with any UPI app to support the radio.</small></div>
       </section>
 
-      <section className="community-section" aria-labelledby="community-heading"><div className="community-copy"><span className="community-eyebrow"><span lang="hi">गाना सूचना</span> · <span lang="or">ଗୀତ ଖବର</span><img src={LOGO_IMAGE} alt="" /></span><h2 id="community-heading">Naya purana gaana mila?<br /><em>WhatsApp pe bol dena.</em></h2><p>Join the TANU Ka Tadka noticeboard for song updates, rainy-day picks, and the occasional “yeh waala suna do” request.</p></div><Dialog><DialogTrigger asChild><button type="button" className="whatsapp-button"><Send size={19} /> Join the WhatsApp channel <ChevronRight size={18} /></button></DialogTrigger><DialogContent className="saloon-dialog border-[#d69a35]/40 bg-[#28140c] text-[#f8edcf] sm:max-w-md"><DialogHeader><div className="dialog-icon"><Send size={23} /></div><DialogTitle className="font-[Yatra_One] text-3xl font-normal text-[#f6c75a]">Mohalla noticeboard</DialogTitle><DialogDescription className="text-base leading-relaxed text-[#e7cf9d]">The TANU Ka Tadka WhatsApp Channel is live for fresh song updates, rainy-day picks, and neighbourhood radio notices.</DialogDescription></DialogHeader><a className="dialog-cta" href="https://whatsapp.com/channel/0029VbDJ4ay2ZjCk4YJUwR3Y" target="_blank" rel="noreferrer">Join TANU Ka Tadka <ExternalLink size={16} /></a></DialogContent></Dialog></section>
+      <section className="community-section" aria-labelledby="community-heading"><div className="community-copy"><span className="community-eyebrow"><span lang="hi">गाना सूचना</span> · <span lang="or">ଗୀତ ଖବର</span><Scissors aria-hidden="true" className="community-mark" /></span><h2 id="community-heading">Naya purana gaana mila?<br /><em>WhatsApp pe bol dena.</em></h2><p>Join the TANU Ka Tadka noticeboard for song updates, rainy-day picks, and the occasional “yeh waala suna do” request.</p></div><Dialog><DialogTrigger asChild><button type="button" className="whatsapp-button"><Send size={19} /> Join the WhatsApp channel <ChevronRight size={18} /></button></DialogTrigger><DialogContent className="saloon-dialog border-[#d69a35]/40 bg-[#28140c] text-[#f8edcf] sm:max-w-md"><DialogHeader><div className="dialog-icon"><Send size={23} /></div><DialogTitle className="font-[Yatra_One] text-3xl font-normal text-[#f6c75a]">Mohalla noticeboard</DialogTitle><DialogDescription className="text-base leading-relaxed text-[#e7cf9d]">The TANU Ka Tadka WhatsApp Channel is live for fresh song updates, rainy-day picks, and neighbourhood radio notices.</DialogDescription></DialogHeader><a className="dialog-cta" href="https://whatsapp.com/channel/0029VbDJ4ay2ZjCk4YJUwR3Y" target="_blank" rel="noreferrer">Join TANU Ka Tadka <ExternalLink size={16} /></a></DialogContent></Dialog></section>
 
-      <footer className="site-footer"><div className="footer-brand"><img src={LOGO_IMAGE} alt="" /><div><span>तनु का तड़का</span><small>THE MOHALLA MEMORY STATION</small></div></div><p><span lang="hi">रेडियो वाला कोना खुला है।</span><br /><span lang="or">ରେଡିଓ କୋଣ ସବୁବେଳେ ଖୋଲା।</span></p><div className="footer-links"><a href="https://instagram.com" target="_blank" rel="noreferrer"><Instagram size={17} />Instagram</a><a href="https://www.youtube.com" target="_blank" rel="noreferrer"><Youtube size={18} />YouTube</a><a href="mailto:radio@tanukatadka.in"><Mail size={17} />Contact</a></div><div className="footer-bottom"><span>© 2026 Tanu Ka Tadka</span><span>Powered by <strong>Tadka Studio</strong></span><span>No login. Just radio.</span></div></footer>
+      <footer className="site-footer"><div className="footer-brand"><Scissors aria-hidden="true" className="footer-icon" /><div><span>तनु का तड़का</span><small>THE MOHALLA MEMORY STATION</small></div></div><p><span lang="hi">रेडियो वाला कोना खुला है।</span><br /><span lang="or">ରେଡିଓ କୋଣ ସବୁବେଳେ ଖୋଲା।</span></p><div className="footer-links"><a href="https://instagram.com" target="_blank" rel="noreferrer"><Instagram size={17} />Instagram</a><a href="https://www.youtube.com" target="_blank" rel="noreferrer"><Youtube size={18} />YouTube</a><a href="mailto:radio@tanukatadka.in"><Mail size={17} />Contact</a></div><div className="footer-bottom"><span>© 2026 Tanu Ka Tadka</span><span>Powered by <strong>Tadka Studio</strong></span><span>No login. Just radio.</span></div></footer>
     </main>
   );
 }

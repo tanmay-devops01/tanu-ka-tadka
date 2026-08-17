@@ -21,6 +21,29 @@
 - [x] Verify the exported repository and record the repository URL: https://github.com/tanmay-devops01/tanu-ka-tadka.
 - [x] Retry the prepared GitHub push after the user’s requested reattempt.
 - [x] Recheck repository-write authorization and make the user-requested final export attempt.
-- [ ] Add the GitHub Pages workflow and base-path configuration for the public repository.
-- [ ] Publish the built static site to GitHub Pages.
-- [ ] Verify the live GitHub Pages URL and deployment status.
+- [x] Add the GitHub Pages workflow and base-path configuration for the public repository.
+- [x] Publish the built static site to GitHub Pages.
+- [x] Verify the live GitHub Pages URL and deployment status.
+- [x] User enabled GitHub Actions as the GitHub Pages source in repository settings.
+- [x] Move pnpm setup before any pnpm-dependent cache or build action in the Pages workflow.
+- [x] Publish the corrected workflow and confirm the GitHub Actions deployment completes.
+- [x] Identify a legally appropriate scalable source for a much larger Odia and Hindi music catalogue.
+- [x] Design a non-repeating playback strategy that can avoid short playlist loops.
+- [x] Confirm the user’s preferred licensing and streaming approach before implementation.
+- [x] Assess SoundCloud, Bandcamp, Amazon Music, and JioSaavn for embeddable playback or safe listener-initiated links.
+- [x] Design a multi-service fallback that does not imply unsupported background playback or unlicensed catalog access.
+- [x] Define the recommended no-key catalogue size and batching approach for reliable client playback.
+- [x] Confirm the target no-key catalogue size: 1,000 tracks.
+- [x] Collect approved source playlist URLs and build the 1,000-track intake manifest.
+- [x] Add batch-loaded catalogue modules and persistent full-cycle no-repeat shuffle logic.
+- [x] Validate all approved tracks for playback availability before publishing the expanded queue.
+- [x] Discover multiple public Hindi and Odia YouTube playlist sources with substantial track libraries.
+- [x] Build a normalized approximately 1,000-track source manifest with a 60–70% Hindi and 30–40% Odia balance.
+- [x] Remove duplicate songs, duplicate versions, and obvious reuploads from the source manifest.
+- [x] Implement track batches, persistent full-cycle shuffle, and language-aware unavailable-track fallback.
+- [x] Produce final catalogue counts, removal/replacement statistics, and source documentation.
+- [x] Initialize and validate a reusable public-playlist radio-catalogue skill package.
+- [x] Add genre and era station modes that constrain future selections without breaking the no-repeat queue.
+- [x] Add compact lazy-load feedback and accessible error toast notifications for unavailable tracks.
+- [x] Validate the filters, queue behavior, feedback, and responsive UI.
+- [ ] Sync the completed revision to the GitHub repository and verify the GitHub Pages deployment.
