@@ -17,7 +17,10 @@
 - [x] Validate controls and support-flow details before the final revision checkpoint.
 - [x] Verify the TANU KA TADKA hero-wordmark edit at desktop and mobile sizes, then save the revision.
 - [x] Confirm the GitHub repository owner, name, and visibility for the export: public tanmay-devops01/tanu-ka-tadka.
-- [ ] Export the current Tanu Ka Tadka code to the confirmed GitHub repository.
-- [ ] Verify the exported repository and record the repository URL.
-- [ ] Retry the prepared GitHub push after the user’s requested reattempt.
-- [ ] Recheck repository-write authorization and make the user-requested final export attempt.
+- [x] Export the current Tanu Ka Tadka code to the confirmed GitHub repository.
+- [x] Verify the exported repository and record the repository URL: https://github.com/tanmay-devops01/tanu-ka-tadka.
+- [x] Retry the prepared GitHub push after the user’s requested reattempt.
+- [x] Recheck repository-write authorization and make the user-requested final export attempt.
+- [ ] Add the GitHub Pages workflow and base-path configuration for the public repository.
+- [ ] Publish the built static site to GitHub Pages.
+- [ ] Verify the live GitHub Pages URL and deployment status.

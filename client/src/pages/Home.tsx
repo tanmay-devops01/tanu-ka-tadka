@@ -36,11 +36,12 @@ import {
 } from "@/components/ui/dialog";
 import { MIXED_PLAYLIST, type RadioTrack } from "@/lib/playlist";
 
-const LOGO_IMAGE = "/manus-storage/tanu-ka-tadka-logo-mark_1cf2b397.png";
-const RADIO_IMAGE = "/manus-storage/tanu-ka-tadka-radio-detail_5270d6dc.png";
-const MONSOON_IMAGE = "/manus-storage/tanu-ka-tadka-monsoon-window_51d299e1.png";
-const STUDIO_HERO_IMAGE = "/manus-storage/tanu-ka-tadka-studio-hero_7b168e01.jpeg";
-const UPI_QR_IMAGE = "/manus-storage/tanu-ka-tadka-upi-qr_25f9bcf8.jpeg";
+const MANUS_ASSET_ORIGIN = "https://tanukatadk-mkctksgt.manus.space";
+const LOGO_IMAGE = `${MANUS_ASSET_ORIGIN}/manus-storage/tanu-ka-tadka-logo-mark_1cf2b397.png`;
+const RADIO_IMAGE = `${MANUS_ASSET_ORIGIN}/manus-storage/tanu-ka-tadka-radio-detail_5270d6dc.png`;
+const MONSOON_IMAGE = `${MANUS_ASSET_ORIGIN}/manus-storage/tanu-ka-tadka-monsoon-window_51d299e1.png`;
+const STUDIO_HERO_IMAGE = `${MANUS_ASSET_ORIGIN}/manus-storage/tanu-ka-tadka-studio-hero_7b168e01.jpeg`;
+const UPI_QR_IMAGE = `${MANUS_ASSET_ORIGIN}/manus-storage/tanu-ka-tadka-upi-qr_25f9bcf8.jpeg`;
 
 interface YouTubePlayer {
   cueVideoById: (videoId: string) => void;
