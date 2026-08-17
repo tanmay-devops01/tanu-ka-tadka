@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Tanu Ka Tadka radio mark">
+  <rect width="512" height="512" rx="112" fill="#120806"/>
+  <rect x="50" y="50" width="412" height="412" rx="84" fill="#25120a" stroke="#d69a35" stroke-width="12"/>
+  <circle cx="257" cy="267" r="116" fill="#140b07" stroke="#e7b34c" stroke-width="16"/>
+  <circle cx="257" cy="267" r="67" fill="#5b2b16" stroke="#f1ca70" stroke-width="9"/>
+  <circle cx="257" cy="267" r="14" fill="#f2d28d"/>
+  <path d="M181 109c18-18 47-18 65 0l28 28-18 18-28-28c-8-8-21-8-29 0-8 8-8 21 0 29l28 28-18 18-28-28c-18-18-18-47 0-65Zm150 0c18-18 47-18 65 0s18 47 0 65l-28 28-18-18 28-28c8-8 8-21 0-29-8-8-21-8-29 0l-28 28-18-18 28-28Z" fill="#d69a35"/>
+  <path d="M111 383h290" stroke="#e7b34c" stroke-linecap="round" stroke-width="20"/>
+  <path d="M145 420h222" stroke="#86501e" stroke-linecap="round" stroke-width="14"/>
+</svg>

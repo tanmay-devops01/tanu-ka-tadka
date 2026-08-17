@@ -20,6 +20,7 @@ import {
   Send,
   SkipBack,
   SkipForward,
+  Smartphone,
   Volume2,
   Waves,
   X,
@@ -492,6 +493,51 @@ export default function Home() {
     return () => window.clearInterval(quoteTimer);
   }, []);
 
+  useEffect(() => {
+    if (!currentTrack || !("mediaSession" in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentTrack.title,
+      artist: currentTrack.artist,
+      album: `Tanu Ka Tadka · ${currentTrack.category}`,
+      artwork: [
+        { src: `https://i.ytimg.com/vi/${currentTrack.videoId}/hqdefault.jpg`, sizes: "480x360", type: "image/jpeg" },
+        { src: "/tanu-tadka-app-icon.svg", sizes: "512x512", type: "image/svg+xml" },
+      ],
+    });
+    navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+  }, [currentTrack, isPlaying]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    const addAction = (action: MediaSessionAction, handler: () => void) => {
+      try { navigator.mediaSession.setActionHandler(action, handler); } catch { /* Unsupported actions are safely omitted by the browser. */ }
+    };
+    addAction("play", () => playerRef.current?.playVideo());
+    addAction("pause", () => playerRef.current?.pauseVideo());
+    addAction("nexttrack", () => selectNextTrack(stationId));
+    addAction("previoustrack", () => playPrevious());
+    addAction("seekbackward", () => {
+      const nextTime = Math.max(0, (playerRef.current?.getCurrentTime() ?? 0) - 15);
+      playerRef.current?.seekTo(nextTime, true);
+    });
+    addAction("seekforward", () => {
+      const nextTime = Math.min(playerRef.current?.getDuration() ?? 0, (playerRef.current?.getCurrentTime() ?? 0) + 15);
+      playerRef.current?.seekTo(nextTime, true);
+    });
+    return () => {
+      (["play", "pause", "nexttrack", "previoustrack", "seekbackward", "seekforward"] as MediaSessionAction[]).forEach((action) => {
+        try { navigator.mediaSession.setActionHandler(action, null); } catch { /* Action may not be implemented by this browser. */ }
+      });
+    };
+  }, [stationId]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || !duration || !Number.isFinite(duration)) return;
+    try {
+      navigator.mediaSession.setPositionState({ duration, playbackRate: 1, position: Math.min(Math.max(elapsed, 0), duration) });
+    } catch { /* Position display is optional and browser-dependent. */ }
+  }, [duration, elapsed]);
+
   return (
     <main className="site-shell">
       <div id="tanu-youtube-player" className="youtube-host" aria-hidden="true" />
@@ -558,6 +604,7 @@ export default function Home() {
             </div>
             <div className="time-row"><span>{formatTime(elapsed)}</span><input type="range" min="0" max={Math.max(duration, 1)} value={Math.min(elapsed, Math.max(duration, 1))} onChange={(event) => { const nextTime = Number(event.target.value); playerRef.current?.seekTo(nextTime, true); setElapsed(nextTime); }} aria-label="Song progress" /><span>{formatTime(duration)}</span></div>
             <div className="player-foot"><span>{playerReady ? (isPlaying ? `Playing from YouTube · ${queueProgress.played}/${CATALOGUE_TOTAL}` : `No-repeat queue · ${queueProgress.remaining} left`) : "Tuning the 1,000-song radio…"}</span><a href={displayTrack.spotifyUrl} target="_blank" rel="noreferrer">Listen full song on Spotify <ExternalLink size={13} /></a></div>
+            <div className="lock-screen-note"><Smartphone size={14} /><span><strong>Lock-screen controls:</strong> after you press play, supported browsers can show play, pause, and skip controls. Install the site from your browser menu for a more app-like listener.</span></div>
           </section>
           <p className="saloon-quote"><Scissors size={15} /> {saloonQuotes[quoteIndex]}</p>
         </div>
