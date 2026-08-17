@@ -1,0 +1,23 @@
+- [x] Inspect the supplied compact player reference and preserve its hierarchy at mobile and desktop sizes.
+- [x] Add an editable mixed 2000s Odia and Hindi YouTube playlist data array with Spotify search links.
+- [x] Replace the ambient-only playback flow with a hidden YouTube IFrame API player, including safe autoplay handling and real playback progress.
+- [x] Implement the reference-matched rain toggle, WhatsApp share-progress card, and compact dark player bar.
+- [x] Update FAQ and supporting copy to explain YouTube playback and optional Spotify links.
+- [x] Validate controls, responsive layout, and the production build before saving a revision checkpoint.
+- [x] Add layered monsoon-night texture, rainfall streaks, and restrained lightning to the radio background.
+- [x] Repair the rain toggle with low-level looping rain and occasional quiet synthesized thunder that sits below music playback.
+- [x] Verify the ON/OFF behavior, audio cleanup, and mobile/desktop visual treatment.
+- [x] Replace the hero background with the user-provided warm music-studio image and preserve player contrast.
+- [x] Replace the diagonal rain treatment with layered, natural window-rain streaks and watery glass detail.
+- [x] Raise rain and thunder audibility modestly while preserving music as the dominant audio layer.
+- [x] Validate the new hero and monsoon ON state at desktop and mobile sizes.
+- [x] Add a dedicated ambient-rain volume slider with an accessible percentage value.
+- [x] Make the lightning visual more prominent and synchronized with the thunder cue.
+- [x] Replace sample WhatsApp and UPI details after the user provides the final channel URL, UPI ID, and QR source.
+- [x] Validate controls and support-flow details before the final revision checkpoint.
+- [x] Verify the TANU KA TADKA hero-wordmark edit at desktop and mobile sizes, then save the revision.
+- [x] Confirm the GitHub repository owner, name, and visibility for the export: public tanmay-devops01/tanu-ka-tadka.
+- [ ] Export the current Tanu Ka Tadka code to the confirmed GitHub repository.
+- [ ] Verify the exported repository and record the repository URL.
+- [ ] Retry the prepared GitHub push after the user’s requested reattempt.
+- [ ] Recheck repository-write authorization and make the user-requested final export attempt.
