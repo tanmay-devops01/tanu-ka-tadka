@@ -48,3 +48,4 @@
 - [x] Validate the filters, queue behavior, feedback, and responsive UI.
 - [ ] Sync the completed revision to the GitHub repository and verify the GitHub Pages deployment.
 - [x] Add standards-based mobile background audio support, lock-screen media controls, and install guidance within YouTube/browser limitations.
+- [x] Prevent duplicate unavailable-upload retries and stacked notifications during YouTube fallback recovery.

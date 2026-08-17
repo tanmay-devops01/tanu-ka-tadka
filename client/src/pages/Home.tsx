@@ -291,6 +291,8 @@ export default function Home() {
   const queueRef = useRef<PersistentRadioQueue | null>(null);
   const currentCatalogueIndexRef = useRef<number | null>(null);
   const currentTrackRef = useRef<RadioTrack | null>(null);
+  const recoveringCatalogueIndexRef = useRef<number | null>(null);
+  const stationIdRef = useRef<StationId>("all");
   const playerReadyRef = useRef(false);
   const displayTrack = currentTrack ?? LOADING_TRACK;
 
@@ -329,7 +331,7 @@ export default function Home() {
   };
 
   const playNext = () => {
-    selectNextTrack(stationId);
+    selectNextTrack(stationIdRef.current);
   };
   const playPrevious = () => {
     const queue = queueRef.current!;
@@ -342,24 +344,41 @@ export default function Home() {
     const queue = queueRef.current!;
     const failedIndex = currentCatalogueIndexRef.current;
     const failedTrack = currentTrackRef.current;
+    if (failedIndex === null || recoveringCatalogueIndexRef.current === failedIndex) return;
+    recoveringCatalogueIndexRef.current = failedIndex;
     if (failedIndex !== null) queue.markUnavailable(failedIndex);
-    const replacementIndex = queue.nextMatching((candidateIndex) => {
-      if (!failedTrack) return true;
-      const candidate = CATALOGUE_INDEX_META[candidateIndex];
-      return candidate.language === failedTrack.language && candidate.category === failedTrack.category;
-    });
+
+    const activeStation = STATION_MODES.find((station) => station.id === stationIdRef.current) ?? STATION_MODES[0];
+    const fallbackRules = failedTrack
+      ? [
+          (candidateIndex: number) => {
+            const candidate = CATALOGUE_INDEX_META[candidateIndex];
+            return candidate.language === failedTrack.language && candidate.category === failedTrack.category;
+          },
+          (candidateIndex: number) => activeStation.matches(CATALOGUE_INDEX_META[candidateIndex]),
+          (candidateIndex: number) => CATALOGUE_INDEX_META[candidateIndex].language === failedTrack.language,
+          () => true,
+        ]
+      : [() => true];
+    let replacementIndex: number | null = null;
+    for (const matchesCandidate of fallbackRules) {
+      replacementIndex = queue.nextMatching(matchesCandidate);
+      if (replacementIndex !== null) break;
+    }
+
     if (replacementIndex === null) {
       setIsPlaying(false);
       setIsTrackLoading(false);
-      toast.error("That YouTube upload is unavailable", { description: "No same-category replacement remains in this cycle." });
+      recoveringCatalogueIndexRef.current = null;
+      toast.error("This station has no playable uploads left", { description: "Choose another station dial to keep the radio moving." });
       return;
     }
     setQueueProgress(queue.progress);
-    toast.error("Skipped an unavailable upload", { description: "The radio found the next matching track in the catalogue." });
     void activateTrack(replacementIndex, true);
   };
 
   const handleStationChange = (nextStation: StationId) => {
+    stationIdRef.current = nextStation;
     setStationId(nextStation);
     const mode = STATION_MODES.find((station) => station.id === nextStation) ?? STATION_MODES[0];
     toast.message(`Dial tuned: ${mode.label}`, { description: "The next unplayed record is loading from this station." });
@@ -435,6 +454,7 @@ export default function Home() {
             if (event.data === 1) {
               setIsPlaying(true);
               setIsTrackLoading(false);
+              recoveringCatalogueIndexRef.current = null;
             }
             if (event.data === 2) setIsPlaying(false);
             if (event.data === 0) playNext();
